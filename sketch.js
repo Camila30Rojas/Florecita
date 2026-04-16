@@ -83,7 +83,7 @@ function setup() {
 }
 
 function draw() {
-  background(255, 0, 220);
+  background('#c8a2c8');
   mariposita.show();
 }
 
