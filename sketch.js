@@ -5,10 +5,6 @@ let targetX;
 let targetY;
 let currentX;
 let currentY;
-let previousX;
-let previousY;
-let trailDX = 0;
-let trailDY = 0;
 let hasFace = false;
 let isProcessingFaceMesh = false;
 let lastFaceMeshRun = 0;
@@ -114,7 +110,7 @@ function setup() {
   video.hide();
 
   resetTrackingToCenter();
-  createMaripositas();
+  createMariposita();
 
   if (typeof FaceMesh === 'undefined') {
     appStatus = `${FLOW_STATE.ERROR}: FaceMesh no cargo`;
@@ -141,20 +137,16 @@ function resetTrackingToCenter() {
   targetY = height / 2;
   currentX = targetX;
   currentY = targetY;
-  previousX = currentX;
-  previousY = currentY;
-  trailDX = 0;
-  trailDY = 0;
 }
 
-function createMaripositas() {
+function createMariposita() {
   const flowerSize = constrain(min(width, height) * 0.25, 80, 180);
   mariposita = new Mariposita(width / 2, height / 2, flowerSize);
 }
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
-  createMaripositas();
+  createMariposita();
   resetTrackingToCenter();
 }
 
@@ -164,6 +156,7 @@ async function runFaceMeshIfNeeded() {
   }
 
   if (!video || !video.elt || video.elt.readyState < 2) {
+    appStatus = FLOW_STATE.CAMERA_READY;
     return;
   }
 
@@ -208,14 +201,13 @@ function handleFaceResults(results) {
 }
 
 function drawSingleMariposita() {
-  const trailBoost = 11;
+  if (!mariposita) {
+    return;
+  }
+
   const safeMargin = 50;
-
-  const x = constrain(currentX + trailDX * trailBoost, safeMargin, width - safeMargin);
-  const y = constrain(currentY + trailDY * trailBoost, safeMargin, height - safeMargin);
-
-  mariposita.x = x;
-  mariposita.y = y;
+  mariposita.x = constrain(currentX, safeMargin, width - safeMargin);
+  mariposita.y = constrain(currentY, safeMargin, height - safeMargin);
   mariposita.show();
 }
 
@@ -227,15 +219,7 @@ function draw() {
   currentX = lerp(currentX, targetX, 0.55);
   currentY = lerp(currentY, targetY, 0.55);
 
-  const frameDX = currentX - previousX;
-  const frameDY = currentY - previousY;
-  trailDX = lerp(trailDX, frameDX, 0.75);
-  trailDY = lerp(trailDY, frameDY, 0.75);
-
   drawSingleMariposita();
-
-  previousX = currentX;
-  previousY = currentY;
 
   if (!hasFace) {
     fill(255);
