@@ -1,16 +1,29 @@
-
-let mariposita;
+let maripositas = [];
 let video;
 let faceMesh;
 let targetX;
 let targetY;
 let currentX;
 let currentY;
+let previousX;
+let previousY;
+let trailDX = 0;
+let trailDY = 0;
 let hasFace = false;
 let isProcessingFaceMesh = false;
 let lastFaceMeshRun = 0;
+
+const GRID_SIZE = 3;
 const FACE_MESH_INTERVAL_MS = 60;
-let appStatus = 'Inicializando camara...';
+const FLOW_STATE = {
+  INIT: 'Inicializando',
+  CAMERA_READY: 'Camara lista',
+  SEARCHING_FACE: 'Buscando rostro...',
+  FACE_DETECTED: 'Rostro detectado',
+  ERROR: 'Error',
+};
+
+let appStatus = FLOW_STATE.INIT;
 
 class Mariposita {
   constructor(x, y, size) {
@@ -89,25 +102,23 @@ class Mariposita {
 }
 
 function setup() {
-  createCanvas(400, 400);
+  createCanvas(windowWidth, windowHeight);
   pixelDensity(1);
   frameRate(30);
+
   video = createCapture(VIDEO, () => {
-    appStatus = 'Camara lista';
+    appStatus = FLOW_STATE.CAMERA_READY;
   });
+
   video.size(320, 240);
   video.elt.setAttribute('playsinline', '');
   video.hide();
 
-  targetX = width / 2;
-  targetY = height / 2;
-  currentX = targetX;
-  currentY = targetY;
-
-  mariposita = new Mariposita(currentX, currentY, 100);
+  resetTrackingToCenter();
+  createMaripositas();
 
   if (typeof FaceMesh === 'undefined') {
-    appStatus = 'Error: FaceMesh no cargo';
+    appStatus = `${FLOW_STATE.ERROR}: FaceMesh no cargo`;
     return;
   }
 
@@ -123,7 +134,33 @@ function setup() {
   });
 
   faceMesh.onResults(handleFaceResults);
-  appStatus = 'Buscando rostro...';
+  appStatus = FLOW_STATE.SEARCHING_FACE;
+}
+
+function resetTrackingToCenter() {
+  targetX = width / 2;
+  targetY = height / 2;
+  currentX = targetX;
+  currentY = targetY;
+  previousX = currentX;
+  previousY = currentY;
+  trailDX = 0;
+  trailDY = 0;
+}
+
+function createMaripositas() {
+  maripositas = [];
+  const flowerSize = constrain(min(width, height) * 0.25, 80, 180);
+
+  for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+    maripositas.push(new Mariposita(width / 2, height / 2, flowerSize));
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  createMaripositas();
+  resetTrackingToCenter();
 }
 
 async function runFaceMeshIfNeeded() {
@@ -148,9 +185,9 @@ async function runFaceMeshIfNeeded() {
 
   try {
     await faceMesh.send({ image: video.elt });
-    appStatus = hasFace ? 'Rostro detectado' : 'Buscando rostro...';
+    appStatus = hasFace ? FLOW_STATE.FACE_DETECTED : FLOW_STATE.SEARCHING_FACE;
   } catch (error) {
-    appStatus = 'Error en FaceMesh';
+    appStatus = `${FLOW_STATE.ERROR}: FaceMesh`; 
   } finally {
     isProcessingFaceMesh = false;
   }
@@ -159,6 +196,7 @@ async function runFaceMeshIfNeeded() {
 function handleFaceResults(results) {
   if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
     hasFace = false;
+    appStatus = FLOW_STATE.SEARCHING_FACE;
     return;
   }
 
@@ -171,6 +209,34 @@ function handleFaceResults(results) {
   targetX = constrain(map(mirrorX, 0, 1, 0, width), 0, width);
   targetY = constrain(map(faceCenterY, 0, 1, 0, height), 0, height);
   hasFace = true;
+  appStatus = FLOW_STATE.FACE_DETECTED;
+}
+
+function drawRepeatedMaripositas() {
+  const spacingX = width / (GRID_SIZE + 1);
+  const spacingY = height / (GRID_SIZE + 1);
+  const trailBoost = 11;
+  const safeMargin = 50;
+  let i = 0;
+
+  for (let row = 0; row < GRID_SIZE; row++) {
+    for (let col = 0; col < GRID_SIZE; col++) {
+      const xIndex = col - 1;
+      const yIndex = row - 1;
+      const spreadFactor = 1 + abs(xIndex) + abs(yIndex);
+
+      let x = currentX + xIndex * spacingX * 0.8 + trailDX * spreadFactor * trailBoost;
+      let y = currentY + yIndex * spacingY * 0.8 + trailDY * spreadFactor * trailBoost;
+
+      x = constrain(x, safeMargin, width - safeMargin);
+      y = constrain(y, safeMargin, height - safeMargin);
+
+      maripositas[i].x = x;
+      maripositas[i].y = y;
+      maripositas[i].show();
+      i++;
+    }
+  }
 }
 
 function draw() {
@@ -181,16 +247,22 @@ function draw() {
   currentX = lerp(currentX, targetX, 0.55);
   currentY = lerp(currentY, targetY, 0.55);
 
-  mariposita.x = currentX;
-  mariposita.y = currentY;
-  mariposita.show();
+  const frameDX = currentX - previousX;
+  const frameDY = currentY - previousY;
+  trailDX = lerp(trailDX, frameDX, 0.75);
+  trailDY = lerp(trailDY, frameDY, 0.75);
+
+  drawRepeatedMaripositas();
+
+  previousX = currentX;
+  previousY = currentY;
 
   if (!hasFace) {
     fill(255);
     noStroke();
-    textSize(14);
-    textAlign(CENTER, TOP);
-    text('Activa la camara y coloca tu rostro frente al sensor', width / 2, 12);
+    textSize(20);
+    textAlign(CENTER, CENTER);
+    text('Coloca tu rostro frente a la camara para activar el movimiento', width / 2, height / 2);
   }
 
   fill(255);
