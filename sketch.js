@@ -2,7 +2,6 @@
 let mariposita;
 let video;
 let faceMesh;
-let camera;
 let targetX;
 let targetY;
 let currentX;
@@ -13,6 +12,8 @@ let neutralFaceY = null;
 let baseX;
 let baseY;
 let isProcessingFaceMesh = false;
+let lastFaceMeshRun = 0;
+const FACE_MESH_INTERVAL_MS = 60;
 
 class Mariposita {
   constructor(x, y, size) {
@@ -119,26 +120,29 @@ function setup() {
   });
 
   faceMesh.onResults(handleFaceResults);
+}
 
-  camera = new Camera(video.elt, {
-    width: 320,
-    height: 240,
-    onFrame: async () => {
-      if (isProcessingFaceMesh) {
-        return;
-      }
+async function runFaceMeshIfNeeded() {
+  if (isProcessingFaceMesh) {
+    return;
+  }
 
-      isProcessingFaceMesh = true;
+  if (!video || !video.elt || video.elt.readyState < 2) {
+    return;
+  }
 
-      try {
-        await faceMesh.send({ image: video.elt });
-      } finally {
-        isProcessingFaceMesh = false;
-      }
-    },
-  });
+  if (millis() - lastFaceMeshRun < FACE_MESH_INTERVAL_MS) {
+    return;
+  }
 
-  camera.start();
+  isProcessingFaceMesh = true;
+  lastFaceMeshRun = millis();
+
+  try {
+    await faceMesh.send({ image: video.elt });
+  } finally {
+    isProcessingFaceMesh = false;
+  }
 }
 
 function handleFaceResults(results) {
@@ -157,7 +161,7 @@ function handleFaceResults(results) {
     neutralFaceY = faceCenterY;
   }
 
-  const offsetX = (faceCenterX - neutralFaceX) * width * 5;
+  const offsetX = (neutralFaceX - faceCenterX) * width * 5;
   const offsetY = (faceCenterY - neutralFaceY) * height * 5;
 
   targetX = constrain(baseX + offsetX, 0, width);
@@ -167,6 +171,8 @@ function handleFaceResults(results) {
 
 function draw() {
   background('#c8a2c8');
+
+  runFaceMeshIfNeeded();
 
   push();
   translate(width, 0);
