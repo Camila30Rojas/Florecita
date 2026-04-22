@@ -1,5 +1,13 @@
 
 let mariposita;
+let video;
+let faceMesh;
+let camera;
+let targetX;
+let targetY;
+let currentX;
+let currentY;
+let hasFace = false;
 
 class Mariposita {
   constructor(x, y, size) {
@@ -79,11 +87,84 @@ class Mariposita {
 
 function setup() {
   createCanvas(400, 400);
-  mariposita = new Mariposita(width / 2, height / 2, 100);
+  video = createCapture(VIDEO);
+  video.size(640, 480);
+  video.hide();
+
+  targetX = width / 2;
+  targetY = height / 2;
+  currentX = targetX;
+  currentY = targetY;
+
+  mariposita = new Mariposita(currentX, currentY, 100);
+
+  faceMesh = new FaceMesh({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+  });
+
+  faceMesh.setOptions({
+    maxNumFaces: 1,
+    refineLandmarks: true,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+
+  faceMesh.onResults(handleFaceResults);
+
+  camera = new Camera(video.elt, {
+    width: 640,
+    height: 480,
+    onFrame: async () => {
+      await faceMesh.send({ image: video.elt });
+    },
+  });
+
+  camera.start();
+}
+
+function handleFaceResults(results) {
+  if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+    hasFace = false;
+    return;
+  }
+
+  const landmarks = results.multiFaceLandmarks[0];
+  let minX = 1;
+  let minY = 1;
+  let maxX = 0;
+  let maxY = 0;
+
+  for (const point of landmarks) {
+    minX = min(minX, point.x);
+    minY = min(minY, point.y);
+    maxX = max(maxX, point.x);
+    maxY = max(maxY, point.y);
+  }
+
+  const faceCenterX = (minX + maxX) / 2;
+  const faceCenterY = (minY + maxY) / 2;
+
+  targetX = map(faceCenterX, 0, 1, 0, width);
+  targetY = map(faceCenterY, 0, 1, 0, height);
+  hasFace = true;
 }
 
 function draw() {
   background('#c8a2c8');
+
+  currentX = lerp(currentX, targetX, 0.15);
+  currentY = lerp(currentY, targetY, 0.15);
+
+  mariposita.x = currentX;
+  mariposita.y = currentY;
   mariposita.show();
+
+  if (!hasFace) {
+    fill(255);
+    noStroke();
+    textSize(14);
+    textAlign(CENTER, TOP);
+    text('Activa la camara y coloca tu rostro frente al sensor', width / 2, 12);
+  }
 }
 
