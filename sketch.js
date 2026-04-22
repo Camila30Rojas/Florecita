@@ -7,13 +7,10 @@ let targetY;
 let currentX;
 let currentY;
 let hasFace = false;
-let neutralFaceX = null;
-let neutralFaceY = null;
-let baseX;
-let baseY;
 let isProcessingFaceMesh = false;
 let lastFaceMeshRun = 0;
 const FACE_MESH_INTERVAL_MS = 60;
+let appStatus = 'Inicializando camara...';
 
 class Mariposita {
   constructor(x, y, size) {
@@ -95,18 +92,24 @@ function setup() {
   createCanvas(400, 400);
   pixelDensity(1);
   frameRate(30);
-  video = createCapture(VIDEO);
+  video = createCapture(VIDEO, () => {
+    appStatus = 'Camara lista';
+  });
   video.size(320, 240);
+  video.elt.setAttribute('playsinline', '');
   video.hide();
 
   targetX = width / 2;
   targetY = height / 2;
   currentX = targetX;
   currentY = targetY;
-  baseX = targetX;
-  baseY = targetY;
 
   mariposita = new Mariposita(currentX, currentY, 100);
+
+  if (typeof FaceMesh === 'undefined') {
+    appStatus = 'Error: FaceMesh no cargo';
+    return;
+  }
 
   faceMesh = new FaceMesh({
     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
@@ -120,6 +123,7 @@ function setup() {
   });
 
   faceMesh.onResults(handleFaceResults);
+  appStatus = 'Buscando rostro...';
 }
 
 async function runFaceMeshIfNeeded() {
@@ -128,6 +132,10 @@ async function runFaceMeshIfNeeded() {
   }
 
   if (!video || !video.elt || video.elt.readyState < 2) {
+    return;
+  }
+
+  if (!faceMesh) {
     return;
   }
 
@@ -140,6 +148,9 @@ async function runFaceMeshIfNeeded() {
 
   try {
     await faceMesh.send({ image: video.elt });
+    appStatus = hasFace ? 'Rostro detectado' : 'Buscando rostro...';
+  } catch (error) {
+    appStatus = 'Error en FaceMesh';
   } finally {
     isProcessingFaceMesh = false;
   }
@@ -156,16 +167,9 @@ function handleFaceResults(results) {
   const faceCenterX = facePoint.x;
   const faceCenterY = facePoint.y;
 
-  if (neutralFaceX === null || neutralFaceY === null) {
-    neutralFaceX = faceCenterX;
-    neutralFaceY = faceCenterY;
-  }
-
-  const offsetX = (neutralFaceX - faceCenterX) * width * 5;
-  const offsetY = (faceCenterY - neutralFaceY) * height * 5;
-
-  targetX = constrain(baseX + offsetX, 0, width);
-  targetY = constrain(baseY + offsetY, 0, height);
+  const mirrorX = 1 - faceCenterX;
+  targetX = constrain(map(mirrorX, 0, 1, 0, width), 0, width);
+  targetY = constrain(map(faceCenterY, 0, 1, 0, height), 0, height);
   hasFace = true;
 }
 
@@ -182,8 +186,8 @@ function draw() {
   noTint();
   pop();
 
-  currentX = lerp(currentX, targetX, 0.45);
-  currentY = lerp(currentY, targetY, 0.45);
+  currentX = lerp(currentX, targetX, 0.55);
+  currentY = lerp(currentY, targetY, 0.55);
 
   mariposita.x = currentX;
   mariposita.y = currentY;
@@ -196,5 +200,11 @@ function draw() {
     textAlign(CENTER, TOP);
     text('Activa la camara y coloca tu rostro frente al sensor', width / 2, 12);
   }
+
+  fill(255);
+  noStroke();
+  textSize(12);
+  textAlign(LEFT, BOTTOM);
+  text(appStatus, 10, height - 10);
 }
 
