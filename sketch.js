@@ -1,4 +1,4 @@
-let maripositas = [];
+let mariposita;
 let video;
 let faceMesh;
 let targetX;
@@ -13,7 +13,6 @@ let hasFace = false;
 let isProcessingFaceMesh = false;
 let lastFaceMeshRun = 0;
 
-const GRID_SIZE = 3;
 const FACE_MESH_INTERVAL_MS = 60;
 const FLOW_STATE = {
   INIT: 'Inicializando',
@@ -149,12 +148,8 @@ function resetTrackingToCenter() {
 }
 
 function createMaripositas() {
-  maripositas = [];
   const flowerSize = constrain(min(width, height) * 0.25, 80, 180);
-
-  for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
-    maripositas.push(new Mariposita(width / 2, height / 2, flowerSize));
-  }
+  mariposita = new Mariposita(width / 2, height / 2, flowerSize);
 }
 
 function windowResized() {
@@ -212,31 +207,16 @@ function handleFaceResults(results) {
   appStatus = FLOW_STATE.FACE_DETECTED;
 }
 
-function drawRepeatedMaripositas() {
-  const spacingX = width / (GRID_SIZE + 1);
-  const spacingY = height / (GRID_SIZE + 1);
+function drawSingleMariposita() {
   const trailBoost = 11;
   const safeMargin = 50;
-  let i = 0;
 
-  for (let row = 0; row < GRID_SIZE; row++) {
-    for (let col = 0; col < GRID_SIZE; col++) {
-      const xIndex = col - 1;
-      const yIndex = row - 1;
-      const spreadFactor = 1 + abs(xIndex) + abs(yIndex);
+  const x = constrain(currentX + trailDX * trailBoost, safeMargin, width - safeMargin);
+  const y = constrain(currentY + trailDY * trailBoost, safeMargin, height - safeMargin);
 
-      let x = currentX + xIndex * spacingX * 0.8 + trailDX * spreadFactor * trailBoost;
-      let y = currentY + yIndex * spacingY * 0.8 + trailDY * spreadFactor * trailBoost;
-
-      x = constrain(x, safeMargin, width - safeMargin);
-      y = constrain(y, safeMargin, height - safeMargin);
-
-      maripositas[i].x = x;
-      maripositas[i].y = y;
-      maripositas[i].show();
-      i++;
-    }
-  }
+  mariposita.x = x;
+  mariposita.y = y;
+  mariposita.show();
 }
 
 function draw() {
@@ -252,7 +232,7 @@ function draw() {
   trailDX = lerp(trailDX, frameDX, 0.75);
   trailDY = lerp(trailDY, frameDY, 0.75);
 
-  drawRepeatedMaripositas();
+  drawSingleMariposita();
 
   previousX = currentX;
   previousY = currentY;
