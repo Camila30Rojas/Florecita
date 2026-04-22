@@ -8,6 +8,11 @@ let targetY;
 let currentX;
 let currentY;
 let hasFace = false;
+let neutralFaceX = null;
+let neutralFaceY = null;
+let baseX;
+let baseY;
+let isProcessingFaceMesh = false;
 
 class Mariposita {
   constructor(x, y, size) {
@@ -87,14 +92,18 @@ class Mariposita {
 
 function setup() {
   createCanvas(400, 400);
+  pixelDensity(1);
+  frameRate(30);
   video = createCapture(VIDEO);
-  video.size(640, 480);
+  video.size(320, 240);
   video.hide();
 
   targetX = width / 2;
   targetY = height / 2;
   currentX = targetX;
   currentY = targetY;
+  baseX = targetX;
+  baseY = targetY;
 
   mariposita = new Mariposita(currentX, currentY, 100);
 
@@ -104,18 +113,28 @@ function setup() {
 
   faceMesh.setOptions({
     maxNumFaces: 1,
-    refineLandmarks: true,
-    minDetectionConfidence: 0.5,
-    minTrackingConfidence: 0.5,
+    refineLandmarks: false,
+    minDetectionConfidence: 0.6,
+    minTrackingConfidence: 0.6,
   });
 
   faceMesh.onResults(handleFaceResults);
 
   camera = new Camera(video.elt, {
-    width: 640,
-    height: 480,
+    width: 320,
+    height: 240,
     onFrame: async () => {
-      await faceMesh.send({ image: video.elt });
+      if (isProcessingFaceMesh) {
+        return;
+      }
+
+      isProcessingFaceMesh = true;
+
+      try {
+        await faceMesh.send({ image: video.elt });
+      } finally {
+        isProcessingFaceMesh = false;
+      }
     },
   });
 
@@ -129,31 +148,36 @@ function handleFaceResults(results) {
   }
 
   const landmarks = results.multiFaceLandmarks[0];
-  let minX = 1;
-  let minY = 1;
-  let maxX = 0;
-  let maxY = 0;
+  const facePoint = landmarks[1] || landmarks[0];
+  const faceCenterX = facePoint.x;
+  const faceCenterY = facePoint.y;
 
-  for (const point of landmarks) {
-    minX = min(minX, point.x);
-    minY = min(minY, point.y);
-    maxX = max(maxX, point.x);
-    maxY = max(maxY, point.y);
+  if (neutralFaceX === null || neutralFaceY === null) {
+    neutralFaceX = faceCenterX;
+    neutralFaceY = faceCenterY;
   }
 
-  const faceCenterX = (minX + maxX) / 2;
-  const faceCenterY = (minY + maxY) / 2;
+  const offsetX = (faceCenterX - neutralFaceX) * width * 5;
+  const offsetY = (faceCenterY - neutralFaceY) * height * 5;
 
-  targetX = map(faceCenterX, 0, 1, 0, width);
-  targetY = map(faceCenterY, 0, 1, 0, height);
+  targetX = constrain(baseX + offsetX, 0, width);
+  targetY = constrain(baseY + offsetY, 0, height);
   hasFace = true;
 }
 
 function draw() {
   background('#c8a2c8');
 
-  currentX = lerp(currentX, targetX, 0.15);
-  currentY = lerp(currentY, targetY, 0.15);
+  push();
+  translate(width, 0);
+  scale(-1, 1);
+  tint(255, 90);
+  image(video, 0, 0, width, height);
+  noTint();
+  pop();
+
+  currentX = lerp(currentX, targetX, 0.45);
+  currentY = lerp(currentY, targetY, 0.45);
 
   mariposita.x = currentX;
   mariposita.y = currentY;
