@@ -178,14 +178,6 @@ function draw() {
 
   runFaceMeshIfNeeded();
 
-  push();
-  translate(width, 0);
-  scale(-1, 1);
-  tint(255, 90);
-  image(video, 0, 0, width, height);
-  noTint();
-  pop();
-
   currentX = lerp(currentX, targetX, 0.55);
   currentY = lerp(currentY, targetY, 0.55);
 
